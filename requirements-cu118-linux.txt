@@ -1,0 +1,65 @@
+# =============================================================================
+#  PointNet_registration —— 本机环境冻结备份 (requirements-cu118-linux.txt)
+# =============================================================================
+# 适用平台 : 仅限「Linux + CUDA 11.8（cu118）」同平台还原
+# 生成方式 : pip freeze 完整导出, 锁定全部安装包的确切版本。
+#
+# 与跨平台版 requirements.txt 的差异:
+#   - 包含了 torch/torchvision/torchaudio 及 nvidia-*-cu11 等平台绑定包。
+#   - 只能在 CPU/GPU 环境同为 cu118 的 Linux 机器上直接还原, 不要用于
+#     Colab / Windows / 其它 CUDA 版本。
+#
+# ---- 还原命令 (在同平台 Linux + cu118 环境执行) ----
+#   # 先装与 Python 3.12 匹配的 torch 三件套 (cu118) 再装本清单:
+#   pip install -r requirements-cu118-linux.txt
+#   # 若 pytorch3d 走的仍是 git 源码链接, 请先确保已安装编译工具链
+#   # (gcc/cmake/ninja/pybind11 等), 或改用官方 cu118 wheel:
+#   #   pip install pytorch3d==0.7.9 --index-url https://download.pytorch.org/whl/cu118
+# =============================================================================
+
+build==1.6.1
+filelock==3.32.3
+fsspec==2026.7.0
+installer==1.1.0
+iopath==0.1.10
+Jinja2==3.1.6
+MarkupSafe==3.0.3
+mpmath==1.3.0
+nab==0.0.23
+nab-index==0.0.23
+nab-markersets==0.0.23
+nab-project==0.0.23
+nab-provider==0.0.23
+nab-resolver==0.0.23
+networkx==3.6.1
+numpy==2.5.2
+nvidia-cublas-cu11==11.11.3.6
+nvidia-cuda-cupti-cu11==11.8.87
+nvidia-cuda-nvrtc-cu11==11.8.89
+nvidia-cuda-runtime-cu11==11.8.89
+nvidia-cudnn-cu11==9.1.0.70
+nvidia-cufft-cu11==10.9.0.58
+nvidia-curand-cu11==10.3.0.86
+nvidia-cusolver-cu11==11.4.1.48
+nvidia-cusparse-cu11==11.7.5.86
+nvidia-nccl-cu11==2.21.5
+nvidia-nvtx-cu11==11.8.86
+packaging==26.3
+pillow==12.3.0
+pipdeptree==4.2.13
+portalocker==4.4.1
+pyproject_hooks==1.3.3
+pytorch3d @ git+https://github.com/facebookresearch/pytorch3d.git@88e182f989c80836f4bd744e0d9cb1852762ce01
+setuptools==84.0.0
+sympy==1.14.0
+tomli==2.5.0
+tomli_w==1.2.0
+torch==2.7.1+cu118
+torchaudio==2.7.1+cu118
+torchvision==0.22.1+cu118
+tqdm==4.70.1
+triton==3.3.1
+truststore==0.10.5
+typing_extensions==4.16.0
+urllib3==2.8.0
+wheel==0.48.0

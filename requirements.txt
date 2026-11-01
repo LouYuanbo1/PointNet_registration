@@ -1,0 +1,9 @@
+# 运行时依赖（版本建议与本地环境匹配后固定）
+numpy
+torch
+pytorch3d
+
+# 说明：
+# - pytorch3d 与 torch 版本强绑定，安装前请参考官方兼容矩阵，
+#   建议根据 `python check_env.py` 检测到的 torch/CUDA 版本选择合适的 pytorch3d 版本。
+# - 若仅做训练/评测（无需 ICP 精配准），可去掉 pytorch3d。
