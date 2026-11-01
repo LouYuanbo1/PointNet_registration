@@ -1,0 +1,2 @@
+# PointNet_registration
+基于PointNet进行配准的研究，并带有与ICP的对比
