@@ -144,10 +144,15 @@ def evaluate_batch(
     icp_a_conv = []
     lk_conv = []
 
+    # 一次性预生成全部 n 个随机扰动，再在循环内按 batch 切片，
+    # 保证 samples[i] 始终配同一个 igt[i]，与 batch 大小无关（可复现）。
+    igt_all = random_igt_twist(n, mag=mag, mag_randomly=True, device=device)  # (n,4,4)
     for st in range(0, n, batch):
         p0 = samples[st:st + batch]                       # (B,N,3)
         B = p0.shape[0]
-        igt = random_igt_twist(B, mag=mag, mag_randomly=True, device=device)
+        # 原方法：每批重新随机生成扰动，结果依赖 batch（batch 越大越偏移随机流），已弃用以保可复现。
+        # igt = random_igt_twist(B, mag=mag, mag_randomly=True, device=device)
+        igt = igt_all[st:st + batch]                      # (B,4,4) = 对应当前 batch 的扰动真值
         p1 = apply_rt(p0, igt)                            # 目标点云
 
         R_gt = igt[:, :3, :3]
