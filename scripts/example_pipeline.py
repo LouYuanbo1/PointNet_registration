@@ -8,7 +8,9 @@
 基于 :mod:`model` 重新设计：
 - 特征网络用 :func:`model.pointnet.create_pointnet` 构造（兼容层自动处理
   lk/yanx27 两种风格，不再需要 registration.adapters）；
-- 真值旋转用 :func:`lie.so3.so3_rodrigues_rotation` 生成。
+- 真值刚体变换用 :func:`utils.transforms.random_igt_twist`（SE(3) twist 一体采样）
+  生成，与 `train_pointnetlk.py` / `benchmark_registration.py` 保持一致：
+  标准正态采样 6 维 twist -> 归一化后按 U(0, mag) 随机缩放 -> SE(3) 指数映射。
 
 运行方式（在项目根目录 PointNet_registration/ 下）：
     python scripts/example_pipeline.py [--model lk|yanx27] [--weights path.pt]
@@ -30,7 +32,7 @@ if ROOT not in sys.path:
 
 from model.pointnet import STYLE_LK, PointNet, create_pointnet
 from utils.builders import get_default_device
-from lie.so3 import so3_rodrigues_rotation
+from utils.transforms import random_igt_twist
 from registration.pipeline import PointCloudRegistrationPipeline, iterative_fine
 
 
@@ -144,9 +146,13 @@ def build_pointnet(model: str = "lk", weights: Optional[str] = None) -> PointNet
         state = torch.load(weights, map_location=device)
         if isinstance(state, dict) and "net_features" in state:  # checkpoint 容器
             state = state["net_features"]
+        # checkpoint 中的 feat 权重保存自 model.ptnet.state_dict()，键带
+        # PointNet 包装器的 "ptnet." 前缀（如 ptnet.h1.*）；加载到内层
+        # PointNet_features 时移除该前缀。
         state = {
-            k.replace("module.", ""): v for k, v in state.items()
-        }  # 兼容 DataParallel 前缀
+            (k[len("ptnet."):] if k.startswith("ptnet.") else k): v
+            for k, v in state.items()
+        }
         net.ptnet.load_state_dict(state)
         print(f"已加载特征权重: {weights}")
     return net
@@ -169,15 +175,15 @@ def run_suite(pointnet: PointNet, title: str = "") -> None:
         coarse_xtol=1.0e-7,
     )
 
-    # 更多、更激进的测试场景
+    # 测试场景：真值变换统一用 random_igt_twist 采样（任意轴旋转 + 平移、按样本随机缩放）；
+    # mag 控制 SE(3) twist 幅度（弧度），越大配准越难；n 为源点数、noise 为施加的高斯噪声。
     cases = [
-        dict(name="小角度+平移", n=800, ang=[5, -8, 12], t=[0.2, -0.1, 0.3], noise=0.0),
-        dict(name="中旋转/平移", n=800, ang=[30, 15, -20], t=[0.3, -0.2, 0.4], noise=0.0),
-        dict(name="大角度+大平移", n=800, ang=[60, 45, -50], t=[0.5, -0.4, 0.6], noise=0.0),
-        dict(name="接近翻转", n=800, ang=[150, -40, 20], t=[-0.6, 0.5, -0.3], noise=0.0),
-        dict(name="更大角度", n=800, ang=[-120, -80, 15], t=[0.4, -0.5, 0.7], noise=0.0),
-        dict(name="稀疏点云 n=300", n=300, ang=[30, 15, -20], t=[0.4, -0.3, 0.5], noise=0.0),
-        dict(name="带高斯噪声", n=1000, ang=[35, -25, 40], t=[0.6, 0.3, -0.5], noise=0.02),
+        dict(name="小幅度SE3", n=800, mag=0.3, noise=0.0),
+        dict(name="中幅度SE3", n=800, mag=1.0, noise=0.0),
+        dict(name="大幅度SE3", n=800, mag=1.5, noise=0.0),
+        dict(name="更大角度SE3", n=800, mag=2.0, noise=0.0),
+        dict(name="稀疏点云 n=300", n=300, mag=1.0, noise=0.0),
+        dict(name="带高斯噪声", n=1000, mag=1.0, noise=0.02),
     ]
 
     print("=" * 100)
@@ -191,10 +197,11 @@ def run_suite(pointnet: PointNet, title: str = "") -> None:
 
     for c in cases:
         print("-" * 100)
-        print(f"场景: {c['name']}   源点数 n={c['n']}   噪声={c['noise']}")
-        ang = torch.deg2rad(torch.tensor(c["ang"], dtype=torch.float32, device=device))
-        R_gt = so3_rodrigues_rotation(ang)  # (3,3)，lie.so3 的罗德里格斯公式
-        t_gt = torch.tensor(c["t"], device=device, dtype=torch.float32)
+        print(f"场景: {c['name']}   源点数 n={c['n']}   噪声={c['noise']}   mag={c['mag']}")
+        igt = random_igt_twist(1, mag=c["mag"], mag_randomly=True,
+                               device=device)[0]  # (4,4)
+        R_gt = igt[:3, :3]   # (3,3)，SE(3) 指数映射得到的旋转矩阵
+        t_gt = igt[:3, 3]    # (3,)，SE(3) 指数映射得到的平移
 
         src = make_source_pointcloud(n=c["n"], device=device).to(torch.float32)
         tgt = apply_rt(src, R_gt, t_gt)
@@ -210,11 +217,7 @@ def run_suite(pointnet: PointNet, title: str = "") -> None:
             ax, ang_deg = axis_angle_from_rot(R_gt)
             tx, ty, tz = t_gt[0].item(), t_gt[1].item(), t_gt[2].item()
             print(
-                f"  真值旋转        : (x,y,z)欧拉=({c['ang'][0]:+.0f},{c['ang'][1]:+.0f},"
-                f"{c['ang'][2]:+.0f})°"
-            )
-            print(
-                f"  轴角+平移       : 轴=({ax[0]:+.3f},{ax[1]:+.3f},{ax[2]:+.3f})"
+                f"  真值变换(轴角) : 轴=({ax[0]:+.3f},{ax[1]:+.3f},{ax[2]:+.3f})"
                 f"  角={ang_deg:6.2f}°  平移=({tx:+.3f},{ty:+.3f},{tz:+.3f})"
             )
             print(f"  A.仅粗配准      : 旋误差 {a_rot:8.3f}°  平移误差 {a_t:.5f}")
@@ -246,7 +249,8 @@ def main() -> None:
 
     p = argparse.ArgumentParser(description="端到端配准演示示例")
     p.add_argument("--model", choices=["default", "lk", "yanx27"], default="lk")
-    p.add_argument("--weights", default=None, help="加载训练好的特征权重 .pt 文件")
+    p.add_argument("--weights", default="checkpoints/pointnetlk_v2.pt",
+                   help="加载训练好的特征权重 .pt（默认 checkpoints/pointnetlk_v2.pt）")
     args = p.parse_args()
 
     model = "lk" if args.model == "default" else args.model

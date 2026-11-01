@@ -144,9 +144,14 @@ def iterative_fine(
     rmse = sol.rmse.to(device=device, dtype=dtype)
     conv = sol.converged
 
-    def _sq(x: Tensor) -> Tensor:
-        """单样本输入时把批维去掉，保持与输入维度一致。"""
-        return x[0] if single else x
+    def _sq(x) -> object:
+        """单样本输入时去掉批维；对标量（如 bool / float）原样返回。"""
+        if not single:
+            return x
+        try:
+            return x[0]
+        except TypeError:
+            return x
 
     return {
         "R": _sq(R_fin),

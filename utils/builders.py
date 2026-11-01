@@ -35,7 +35,13 @@ def build_lk(version, pre_weights=None, device=None, **kw):
         state = torch.load(pre_weights, map_location=device)
         if isinstance(state, dict):
             state = state.get("net_features", state)
-        state = {k.replace("module.", ""): v for k, v in state.items()}
+        # checkpoint 中的 feat 权重保存自 model.ptnet.state_dict()，键带
+        # PointNet 包装器的 "ptnet." 前缀（如 ptnet.h1.*）；加载到内层
+        # PointNet_features（net.ptnet）时移除该前缀。
+        state = {
+            (k[len("ptnet."):] if k.startswith("ptnet.") else k): v
+            for k, v in state.items()
+        }
         net.ptnet.load_state_dict(state, strict=False)
         print(f"已加载初始特征权重: {pre_weights}")
     cls = PointNetLK if version == "lk" else PointNetLKV2

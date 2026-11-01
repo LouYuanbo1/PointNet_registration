@@ -237,7 +237,8 @@ def _mean_std(a: np.ndarray) -> str:
 
 def main() -> None:
     p = argparse.ArgumentParser(description="批量评测 PointNetLK+ICP vs 仅ICP")
-    p.add_argument("--weights", default=None, help="训练好的特征权重 .pt（默认随机初始化）")
+    p.add_argument("--weights", default="checkpoints/pointnetlk_v2.pt",
+                   help="训练好的特征权重 .pt（默认 checkpoints/pointnetlk_v2.pt）")
     p.add_argument("--version", choices=["lk", "v2"], default="v2")
     p.add_argument("--root", type=str, default="./data")
     p.add_argument("--split", choices=["train", "test"], default="test")
